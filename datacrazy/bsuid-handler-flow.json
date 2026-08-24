@@ -39,7 +39,7 @@
             "options": {
               "type": "contains",
               "keywords": [
-                "Quiero participar en la reunión secreta",
+                "SUA_KEYWORD_DA_CAMPANHA",
                 "teste"
               ],
               "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
@@ -617,7 +617,7 @@
   "notes": [
     {
       "options": {
-        "text": "Trigger 1 — Nova mensagem CTWA\nDispara SÓ quando lead manda a keyword da campanha (ex: 'Quiero participar en la reunión secreta').\nSem essa keyword nao entra no fluxo.",
+        "text": "Trigger 1 — Nova mensagem CTWA\nDispara SÓ quando lead manda a keyword da campanha (ex: 'SUA_KEYWORD_DA_CAMPANHA').\nSem essa keyword nao entra no fluxo.",
         "color": "#c7d2fe",
         "width": 256,
         "height": 218

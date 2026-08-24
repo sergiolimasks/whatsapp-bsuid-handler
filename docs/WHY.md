@@ -13,7 +13,7 @@ Um identificador único por par **usuário↔business portfolio** gerado pela Me
 
 ```
 CO.13491208655302741918
-BR.1890869588965887
+BR.99999999999999999
 ```
 
 Formato: prefixo ISO 3166 de 2 letras + ponto + até 128 caracteres alfanuméricos.

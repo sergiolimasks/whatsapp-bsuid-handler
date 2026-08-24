@@ -63,7 +63,7 @@
             {
               "id": "7",
               "name": "webinar_slug",
-              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || 'YOUR_CAMPAIGN_SLUG' }}",
               "type": "string"
             },
             {

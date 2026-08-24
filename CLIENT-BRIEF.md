@@ -4,7 +4,7 @@ Documento pra você entender a mudança que aconteceu no seu WhatsApp — sem pa
 
 ## O problema que a gente resolveu
 
-Nas últimas semanas, o WhatsApp mudou uma coisa importante em alguns países (Colômbia entre eles): agora **1 em cada 5 clientes** que chega no seu WhatsApp vem **sem o número de telefone**. No lugar do telefone, aparece só um código estranho tipo `CO.1097969142582134`.
+Nas últimas semanas, o WhatsApp mudou uma coisa importante em alguns países (Colômbia entre eles): agora **1 em cada 5 clientes** que chega no seu WhatsApp vem **sem o número de telefone**. No lugar do telefone, aparece só um código estranho tipo `CO.99999999999999999`.
 
 Isso quebrava várias coisas do seu funil:
 - O rastreamento **não conseguia ligar** o cliente que entrou na live com o cliente que comprou
@@ -48,7 +48,7 @@ Isso é ouro pra analisar depois:
 
 **Nada.** Você continua operando exatamente como antes. As automações antigas continuam ligadas do jeito que estavam. A única diferença é que agora o telefone dos clientes "invisíveis" também aparece.
 
-O único **cuidado novo**: se a Meta liberar mais campanhas suas ou você mudar keyword, avisa a gente pra ajustar a automação. Ela hoje escuta a keyword `"Quiero participar en la reunión secreta"` — se campanha nova mandar outra frase, precisa incluir na configuração.
+O único **cuidado novo**: se a Meta liberar mais campanhas suas ou você mudar keyword, avisa a gente pra ajustar a automação. Ela hoje escuta a keyword `"SUA_KEYWORD_DA_CAMPANHA"` — se campanha nova mandar outra frase, precisa incluir na configuração.
 
 ## O que dá pra medir agora
 

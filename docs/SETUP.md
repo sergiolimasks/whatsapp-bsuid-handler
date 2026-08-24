@@ -113,7 +113,7 @@ curl "https://crm.g1.datacrazy.io/api/crm/flows/<FLOW_ID>" \
 #    - YOUR_TAG_LOST_BSUID_ID → UUID da outra tag
 #    - YOUR_N8N_WEBHOOK_HOST → seu host n8n
 #    - YOUR_CLIENT-bsuid-request → path do seu webhook
-#    - YOUR_CAMPAIGN_SLUG → identificador da campanha (ex "7usd", "20usd")
+#    - YOUR_CAMPAIGN_SLUG → identificador da campanha (ex "campanha_a", "campanha_b")
 
 # 4. PATCH os blocks
 curl -X PATCH "https://crm.g1.datacrazy.io/api/crm/flows/<FLOW_ID>/versions/<VERSION_ID>" \

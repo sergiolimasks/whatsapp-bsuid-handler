@@ -39,7 +39,7 @@
             {
               "id": "3",
               "name": "webinar_slug",
-              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || 'YOUR_CAMPAIGN_SLUG' }}",
               "type": "string"
             }
           ]
@@ -88,7 +88,7 @@
             {
               "id": "5",
               "name": "webinar_slug",
-              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || 'YOUR_CAMPAIGN_SLUG' }}",
               "type": "string"
             },
             {
