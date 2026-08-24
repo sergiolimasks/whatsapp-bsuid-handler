@@ -1,0 +1,133 @@
+{
+  "name": "[TEMPLATE] Pedir Contato BSUID",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bsuid-request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d84f2c9f-1e4a-4b3f-b7c9-8f2e6a1c9d0e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "b93f2c9f-1e4a-4b3f-b7c9-8f2e6a1c9d0f",
+      "notes": "Recebe do DataCrazy quando lead entra sem telefone. Query params esperados: leadId, name, leadPhone, bsuid_raw (from_user_id), ctwa_clid.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose"},
+          "conditions": [
+            {
+              "id": "8f0a2c1b-3d4e-4f5a-9b6c-7d8e9f0a1b2c",
+              "leftValue": "={{ String($('Webhook').item.json.query.leadPhone || '').trim() }}",
+              "rightValue": "",
+              "operator": {"type": "string", "operation": "empty", "singleValue": true}
+            },
+            {
+              "id": "9f1a3c2b-4d5e-5f6a-ab7c-8d9e0f1a2b3d",
+              "leftValue": "={{ String($('Webhook').item.json.query.bsuid_raw || '').trim() }}",
+              "rightValue": "",
+              "operator": {"type": "string", "operation": "notEmpty", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c72e4a1b-5c3d-4e6f-8a9b-0c1d2e3f4a5b",
+      "name": "Só se BSUID-only",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [220, 0],
+      "notes": "Gate: só continua se leadPhone vazio E bsuid_raw preenchido. Cliente com phone: skip (não precisa pedir contato). Motivo: DC sempre chama esse webhook em qualquer 1ª msg, filtro é aqui.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "1", "name": "phone_number_id", "value": "YOUR_META_PHONE_NUMBER_ID", "type": "string"},
+            {"id": "2", "name": "meta_graph_version", "value": "v22.0", "type": "string"},
+            {"id": "3", "name": "message_text", "value": "={{ 'Hola ' + ($('Webhook').item.json.query.name || 'amigo') + ' 👋\\n\\nPara reservarte el enlace, necesito tu WhatsApp verificado — es 1 toque abajo, no tienes que escribir nada 👇' }}", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "a63e5c2b-6d4e-4f7a-9b8c-1d2e3f4a5b6c",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 0],
+      "notes": "Ajuste aqui: seu Meta phone_number_id + copy da mensagem. Copy testada: motivo (reservar enlace) + baixa fricção (1 toque, sem escrever).",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').item.json.meta_graph_version }}/{{ $('Config').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Authorization", "value": "Bearer YOUR_META_ACCESS_TOKEN"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  messaging_product: \"whatsapp\",\n  recipient_type: \"individual\",\n  to: $('Webhook').item.json.query.bsuid_raw,\n  type: \"interactive\",\n  interactive: {\n    type: \"request_contact_info\",\n    body: { text: $('Config').item.json.message_text },\n    action: { name: \"request_contact_info\" }\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "b52f6d3c-7e5f-4a8b-ac9d-2e3f4a5b6c7d",
+      "name": "Meta: request_contact_info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0],
+      "notes": "Envia mensagem interativa nativa. Cliente vê botão 'Compartir contacto'. Requer janela 24h aberta pelo user. Substitua YOUR_META_ACCESS_TOKEN pelo seu System User token.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, bsuid: $('Webhook').item.json.query.bsuid_raw, meta_msg_id: $('Meta: request_contact_info').item.json.messages?.[0]?.id || null}) }}"
+      },
+      "id": "e42a7e4d-8f6a-4b9c-bd0e-3f4a5b6c7d8e",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [880, 0],
+      "notes": "Retorna ok + meta_msg_id pro DC. Se quiser logar ou anexar ao lead do DC, o DC pode consumir esse response no bloco seguinte."
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, skipped: true, reason: 'lead já tem phone ou bsuid vazio'}) }}"
+      },
+      "id": "f31b8f5e-9a7b-4cad-ce1f-4a5b6c7d8e9f",
+      "name": "Skip (has phone)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [440, 200],
+      "notes": "Cliente já tem phone (não é BSUID-only). Retorna 200 sem chamar Meta. DC continua flow normalmente.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Só se BSUID-only", "type": "main", "index": 0}]]},
+    "Só se BSUID-only": {
+      "main": [
+        [{"node": "Config", "type": "main", "index": 0}],
+        [{"node": "Skip (has phone)", "type": "main", "index": 0}]
+      ]
+    },
+    "Config": {"main": [[{"node": "Meta: request_contact_info", "type": "main", "index": 0}]]},
+    "Meta: request_contact_info": {"main": [[{"node": "Respond OK", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

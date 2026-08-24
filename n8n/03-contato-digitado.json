@@ -1,0 +1,101 @@
+{
+  "name": "[TEMPLATE] Contato Digitado (valida phone livre)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "text-input-shared",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a51b3c5d-6e7f-4890-b1c2-d3e4f5a6b7c8",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "b62c4d6e-7f8a-4901-c2d3-e4f5a6b7c8d9",
+      "notes": "Recebe texto livre digitado pelo cliente (fallback quando não clicou no botão nativo). Query: leadId, texto, bsuid, leadName.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "1", "name": "texto_raw", "value": "={{ $('Webhook').item.json.query.texto || '' }}", "type": "string"},
+            {"id": "2", "name": "digits", "value": "={{ String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g,'') }}", "type": "string"},
+            {"id": "3", "name": "telefone_valido", "value": "={{ String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g,'').length >= 10 }}", "type": "boolean"},
+            {"id": "4", "name": "telefone_limpo", "value": "={{ (() => { const d = String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g,''); if (d.length < 10) return ''; if (d.startsWith('0')) return d.substring(1); return d; })() }}", "type": "string"},
+            {"id": "5", "name": "bsuid", "value": "={{ String($('Webhook').item.json.query.bsuid || '').trim() }}", "type": "string"},
+            {"id": "6", "name": "leadId", "value": "={{ $('Webhook').item.json.query.leadId }}", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "c73d5e7f-8a9b-4a12-d3e4-f5a6b7c8d9e0",
+      "name": "Parse Texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "notes": "Extrai só dígitos (regex). Valida mínimo 10 dígitos. Se começar com '0' (formato brasileiro com 0), remove. Retorna telefone_valido=false se não bate.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose"},
+          "conditions": [{
+            "id": "8f0a2c1b-3d4e-4f5a-9b6c-7d8e9f0a1b2c",
+            "leftValue": "={{ $('Parse Texto').item.json.telefone_valido }}",
+            "rightValue": true,
+            "operator": {"type": "boolean", "operation": "true", "singleValue": true}
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d84e6f8a-9b0c-4b23-e4f5-a6b7c8d9e0f1",
+      "name": "É telefone válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 0],
+      "notes": "true → responde OK com phone limpo. false → responde 400 (DC pode reenviar msg pedindo pra digitar de novo).",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, leadId: $('Parse Texto').item.json.leadId, telefone: $('Parse Texto').item.json.telefone_limpo, bsuid: $('Parse Texto').item.json.bsuid, via: 'text_input'}) }}"
+      },
+      "id": "e95f7a9b-0c1d-4c34-f5a6-b7c8d9e0f1a2",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [660, -100],
+      "notes": "Sucesso: telefone extraído. DC atualiza lead + aplica tag phone_resolvido no próximo bloco."
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseCode": 400,
+        "responseBody": "={{ JSON.stringify({ok: false, error: 'telefone_invalido', digits: $('Parse Texto').item.json.digits, texto: $('Parse Texto').item.json.texto_raw}) }}"
+      },
+      "id": "fa60890c-1d2e-4d45-a6b7-c8d9e0f1a2b3",
+      "name": "Respond Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [660, 100],
+      "notes": "Texto não parece telefone válido. DC pode pedir pra digitar de novo, ou aplicar tag lost_bsuid depois de N tentativas."
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Parse Texto", "type": "main", "index": 0}]]},
+    "Parse Texto": {"main": [[{"node": "É telefone válido?", "type": "main", "index": 0}]]},
+    "É telefone válido?": {"main": [
+      [{"node": "Respond OK", "type": "main", "index": 0}],
+      [{"node": "Respond Erro", "type": "main", "index": 0}]
+    ]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

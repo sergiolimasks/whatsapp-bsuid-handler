@@ -1,0 +1,61 @@
+{
+  "name": "[TEMPLATE] Contato Compartilhado (normaliza phone)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "contact-shared",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b13a2c4d-5e6f-4789-a0b1-c2d3e4f5a6b7",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "c24b3d5e-6f7a-4890-b1c2-d3e4f5a6b7c8",
+      "notes": "Recebe do DataCrazy quando cliente compartilhou contato (msg type=contacts). Query params: leadId, telefone (formato Meta '+55 19 99...'), bsuid, name_contact, first_name_contact. Só normaliza e devolve — quem grava é o próprio DC (add-tag + update-lead-field).",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "1", "name": "telefone_raw", "value": "={{ $('Webhook').item.json.query.telefone }}", "type": "string"},
+            {"id": "2", "name": "telefone_limpo", "value": "={{ String($('Webhook').item.json.query.telefone || '').replace(/[^0-9]/g,'') }}", "type": "string"},
+            {"id": "3", "name": "bsuid", "value": "={{ String($('Webhook').item.json.query.bsuid || '').trim() }}", "type": "string"},
+            {"id": "4", "name": "nome", "value": "={{ String($('Webhook').item.json.query.name_contact || $('Webhook').item.json.query.first_name_contact || $('Webhook').item.json.query.leadName || '').trim() }}", "type": "string"},
+            {"id": "5", "name": "leadId", "value": "={{ $('Webhook').item.json.query.leadId }}", "type": "string"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "d35c4e6f-7a8b-4901-c2d3-e4f5a6b7c8d9",
+      "name": "Normalizar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0],
+      "notes": "Strip non-digits do phone ('+55 19 99739-6902' → '5519997396902'). Nome com prioridade: vCard formatted > vCard firstName > WA profile.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {},
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, leadId: $('Normalizar').item.json.leadId, telefone: $('Normalizar').item.json.telefone_limpo, bsuid: $('Normalizar').item.json.bsuid, nome: $('Normalizar').item.json.nome}) }}"
+      },
+      "id": "e46d5f7a-8b9c-4a12-d3e4-f5a6b7c8d9e0",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [440, 0],
+      "notes": "Retorna phone limpo + nome pro DC usar em bloco 'atualizar lead' e aplicar tag phone_resolvido. Se preferir integrar com outro sistema (CRM externo, planilha, webhook), plugue aqui.",
+      "notesInFlow": true
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Normalizar", "type": "main", "index": 0}]]},
+    "Normalizar": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

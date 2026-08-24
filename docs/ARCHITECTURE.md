@@ -10,18 +10,18 @@
   1. Cliente clica ad CTWA no Meta Ads
                     │
                     ▼
-  2. WhatsApp abre no celular do cliente
+  2. WhatsApp abre no celular do cliente com msg pré-preenchida
                     │
                     ▼
   3. Cliente manda 1ª mensagem (keyword da campanha)
                     │
                     ▼
-  4. Meta Cloud API envia webhook pro BSP (DataCrazy)
+  4. Meta Cloud API envia webhook pro DataCrazy
      ┌─────────────────────────────────────────┐
      │ { "type": "text",                       │
      │   "from_user_id": "CO.13491208655...",  │  ← BSUID no lugar do wa_id
-     │   "profile": { "name": "Juan" }          │
-     │ }                                        │
+     │   "profile": { "name": "Juan" }         │
+     │ }                                       │
      └─────────────────────────────────────────┘
                     │
                     ▼
@@ -30,14 +30,13 @@
                     ▼
   6. Flow "BSUID Handler" — Trigger 1 dispara:
      ┌──────────────────────────────────────────────────┐
-     │ H1: HTTP POST → n8n /bsuid-request         │
+     │ H1: HTTP POST → n8n /bsuid-request               │
      └──────────────────────────────────────────────────┘
                     │
                     ▼
   7. n8n workflow "Pedir Contato":
-     • IF gate: leadPhone vazio E bsuid preenchido?
-     • INSERT rastreio_whats.contatos (bsuid, ctwaclid, phone_requested_at=NOW)
-     • POST Meta Graph API /messages type=interactive request_contact_info
+     • IF gate: leadPhone vazio E bsuid preenchido? SIM
+     • POST Meta Graph API type=interactive request_contact_info
                     │
                     ▼
   8. Cliente recebe no WA botão nativo "📇 Compartilhar contato"
@@ -46,27 +45,27 @@
   │  ➊ Se cliente clica NA HORA:                                │
   │                                                              │
   │  9a. Meta envia webhook type=contacts pro DataCrazy         │
-  │      ┌─────────────────────────────────────────────┐         │
-  │      │ { "type": "contacts",                       │         │
-  │      │   "from_user_id": "CO.13491208655...",      │         │
-  │      │   "contacts": [{                            │         │
-  │      │     "phones": [{"phone": "+57 300 1234"}],  │         │
-  │      │     "name": {"formatted_name": "Juan"}      │         │
-  │      │   }]                                        │         │
-  │      │ }                                            │         │
-  │      └─────────────────────────────────────────────┘         │
+  │      ┌─────────────────────────────────────────────┐        │
+  │      │ { "type": "contacts",                       │        │
+  │      │   "from_user_id": "CO.13491208655...",      │        │
+  │      │   "contacts": [{                            │        │
+  │      │     "phones": [{"phone": "+57 300 1234"}],  │        │
+  │      │     "name": {"formatted_name": "Juan"}      │        │
+  │      │   }]                                        │        │
+  │      │ }                                           │        │
+  │      └─────────────────────────────────────────────┘        │
   │                                                              │
   │  10a. Flow BSUID Handler — Trigger 2 dispara:                │
   │       Condition: [Message-2]type contains "contacts"?  SIM   │
-  │       → HTTP POST → n8n /contact-shared               │
+  │       → HTTP POST → n8n /contact-shared                      │
   │                                                              │
   │  11a. n8n workflow "Contato Compartilhado":                  │
-  │       • Sanitize phone ("+57 300 1234" → "573001234")        │
-  │       • CTE Merge:                                           │
-  │         - UPDATE rastreio SET telefone=X WHERE bsuid=Y       │
-  │         - identifier recalcula (bsuid → phone)               │
-  │         - grava phone_shared_at + phone_shared_via           │
-  │       → aplica tag `phone_resolvido` no lead                 │
+  │       • Normaliza phone ("+57 300 1234" → "573001234")       │
+  │       • Fallback nome: vCard > firstName > WA profile        │
+  │       • Retorna JSON limpo pro DC                            │
+  │                                                              │
+  │  12a. DC bloco "atualizar lead" seta phone recebido          │
+  │  13a. DC aplica tag `phone_resolvido`                        │
   │                                                              │
   └─────────────────────────────────────────────────────────────┘
 
@@ -81,46 +80,40 @@
   │                                                              │
   │  12b. Handler pede pra digitar: "escreve teu WA aqui"        │
   │  13b. text-input-message aguarda cliente digitar             │
-  │  14b. HTTP POST → n8n /text-input-shared                      │
-  │  15b. n8n regex → extrai dígitos → valida ≥10 → mesma CTE   │
-  │       → aplica tag `phone_resolvido`                         │
+  │  14b. HTTP POST → n8n /text-input-shared                     │
+  │  15b. n8n regex → extrai dígitos → valida ≥10                │
+  │       → retorna phone limpo ou 400                           │
+  │  16b. DC aplica tag `phone_resolvido`                        │
   │                                                              │
   │  ➍ Se ainda ninguém: tag `lost_bsuid` (perdido)             │
   │                                                              │
   └─────────────────────────────────────────────────────────────┘
 
-  12. Flows de PRODUÇÃO ativam via trigger tag-added:
+  14. Flows de PRODUÇÃO ativam via trigger tag-added:
       Trigger: tag `phone_resolvido` foi aplicada
       → Continua funil normal (webinar, follow-ups, checkout)
 ```
 
 ## Componentes
 
-### DataCrazy (BSP)
+### DataCrazy — cérebro
 
 | Componente | Papel |
 |---|---|
 | Flow **BSUID Handler** | 2 triggers (pedir contato + capturar share). 18 blocos, delays com retry, fallback text-input, aplica tags |
-| Tag `phone_resolvido` | Aplicada quando phone é capturado. Ativa flows de produção |
+| Tag `phone_resolvido` | Aplicada quando phone é capturado. Ativa flows de produção via trigger tag-added |
 | Tag `lost_bsuid` | Aplicada se não conseguir capturar em ~30min. Usada pra análise/retargeting |
+| Bloco "atualizar lead" | Salva phone recebido no lead do próprio DC |
 
-### n8n (motor)
+### n8n — middleware stateless
 
 | Workflow | Webhook | Função |
 |---|---|---|
-| Pedir Contato (BSUID) | `POST /bsuid-request` | Envia Meta interactive. IF gate (só BSUID-only) |
-| Contato Compartilhado | `POST /contact-shared` | Recebe share do cliente. CTE merge de identidade |
-| Contato Digitado (fallback) | `POST /text-input-shared` | Parseia texto livre. Regex + validação |
+| Pedir Contato BSUID | `POST /bsuid-request` | IF gate (só BSUID-only) → envia Meta interactive |
+| Contato Compartilhado | `POST /contact-shared` | Normaliza phone Meta format → retorna JSON limpo |
+| Contato Digitado | `POST /text-input-shared` | Parseia + valida phone livre → retorna 200 ou 400 |
 
-### Postgres (source-of-truth)
-
-Tabela `rastreio_whats.<cliente>` — schema com colunas:
-
-- `telefone` (nullable) — phone quando existe
-- `bsuid` (nullable) — BSUID sempre presente
-- `identifier` GENERATED = `COALESCE(telefone, bsuid)` — chave lógica
-- PK: `(identifier, webinar_slug)`
-- `phone_requested_at`, `phone_shared_at`, `phone_shared_via` — métricas
+**Importante:** os workflows n8n são **stateless**. Não gravam em banco, não têm memória entre execuções. Toda persistência fica no DataCrazy (lead, tags, campos). Se você quiser plugar num banco/CRM externo (Postgres, Sheets, HubSpot etc), adicione um node no fim de cada workflow — mas isso é decisão de implementação, não faz parte do template.
 
 ### Meta Cloud API
 
@@ -143,55 +136,22 @@ Solução: DC sempre chama o n8n em toda 1ª msg CTWA. n8n filtra:
 - Se `leadPhone` preenchido: skip (cliente não é BSUID-only, ignora)
 - Se `leadPhone` vazio E `bsuid_raw` preenchido: segue → envia Meta
 
-Efeito colateral positivo: o n8n vira o único ponto onde a lógica vive. Se você quiser ajustar critério de disparo, muda 1 IF em 1 workflow, não N triggers no DC.
+Efeito colateral positivo: a lógica de filtro vive em 1 lugar (n8n). Ajustar critério = editar 1 IF, não N triggers no DC.
 
-## Idempotência
+## Fluxo de handoff
 
-- **INSERT no Postgres** com `ON CONFLICT (identifier, webinar_slug) DO UPDATE` — retries do DC (comum com timeouts) não duplicam
-- **phone_requested_at** preservado no ON CONFLICT — se o mesmo cliente entrar de novo, mantém o timestamp original (importante pra medir tempo até resposta corretamente)
-- **CTE merge** no contact-shared detecta caso onde já existe linha `(phone, slug)` E linha `(bsuid, slug)` — funde ambos e deleta a duplicata BSUID (evita violação de PK quando identifier recalcula)
+O handler termina com a tag `phone_resolvido` aplicada no lead. Nos flows de produção (webinar, follow-up, checkout), adicione um **trigger novo do tipo tag-added** apontando pra essa tag. Assim quando o handler resolve o phone, o cliente entra automaticamente no funil real como se tivesse chegado normalmente.
 
-## Gotcha crítico da migração de PK
-
-Quando a PK muda de `(telefone, slug)` pra `(identifier, slug)` onde `identifier = COALESCE(telefone, bsuid)`:
-
-Se cliente BSUID-only compartilhar telefone que JÁ EXISTE em outra linha da mesma campanha, o UPDATE `SET telefone` recalcula `identifier` de BSUID pra phone. Nova chave `(phone, slug)` colide com a linha existente → constraint violation.
-
-**Solução no merge SQL:**
-
-```sql
-WITH existing_by_phone AS (
-  SELECT * FROM contatos
-  WHERE telefone = :in_tel AND webinar_slug = :in_slug LIMIT 1
-),
-bsuid_row AS (
-  SELECT * FROM contatos
-  WHERE bsuid = :in_bsuid AND webinar_slug = :in_slug AND telefone IS NULL LIMIT 1
-),
-consolidated AS (
-  -- Ambas existem: funde bsuid+dados na linha_phone
-  UPDATE contatos a SET
-    bsuid = COALESCE(a.bsuid, (SELECT bsuid FROM bsuid_row)),
-    ctwaclid = COALESCE(NULLIF(a.ctwaclid,''), (SELECT ctwaclid FROM bsuid_row)),
-    -- ...
-  WHERE a.telefone = :in_tel AND ...
-    AND EXISTS (SELECT 1 FROM bsuid_row)
-    AND EXISTS (SELECT 1 FROM existing_by_phone)
-  RETURNING 'CONSOLIDATED'
-),
-deleted AS (
-  -- Deleta a linha BSUID (dados já foram consolidados)
-  DELETE FROM contatos WHERE bsuid = :in_bsuid AND telefone IS NULL
-    AND EXISTS (SELECT 1 FROM consolidated)
-),
-simple_update AS (
-  -- Só existe bsuid_row: UPDATE simples
-  UPDATE contatos SET telefone = :in_tel
-  WHERE bsuid = :in_bsuid AND telefone IS NULL
-    AND NOT EXISTS (SELECT 1 FROM existing_by_phone)
-  RETURNING 'UPDATED'
-)
-SELECT * FROM consolidated UNION ALL SELECT * FROM simple_update;
+Fluxo antigo (só phone-normal):
+```
+Trigger keyword CTWA → resto do flow
 ```
 
-Detalhes completos em [`../postgres/migration.sql`](../postgres/migration.sql).
+Fluxo novo (BSUID-aware):
+```
+Trigger keyword CTWA ──┐
+                       ├→ resto do flow (mesma coisa)
+Trigger tag phone_resolvido ──┘
+```
+
+Duas portas de entrada, mesmo destino.

@@ -2,9 +2,9 @@
 
 > Recupera automaticamente o telefone de leads WhatsApp que vêm sem número (BSUID-only) usando o botão nativo `request_contact_info` da Meta Cloud API.
 
-**Stack:** DataCrazy CRM + n8n + Postgres + Meta Graph API v22.0
+**Stack:** DataCrazy CRM + n8n + Meta Graph API v22.0
 
-**Status:** rodando em produção desde 2026-08-24 em cliente com ~19% dos leads CTWA colombianos vindo como BSUID-only.
+**Status:** rodando em produção desde agosto/2026 em cliente CTWA colombiano com ~19% dos leads BSUID-only.
 
 ---
 
@@ -16,19 +16,19 @@ Rollout começou pela Colômbia e México, expandindo globalmente ao longo de 20
 
 **Impacto direto:**
 - Match end-to-end quebra: cliente entra por CTWA sem phone → webinar/checkout Hotmart não conseguem casar de volta com o lead original
-- Meta Ads perde a capacidade de otimizar: sem `Purchase` retornando via CAPI amarrado ao `ctwa_clid`, o algoritmo fica cego
-- Automações CRM (RD, ActiveCampaign, HubSpot) que usam phone como chave primária param de funcionar em ~20% dos leads
+- Meta Ads perde otimização: sem `Purchase` retornando via CAPI amarrado ao `ctwa_clid`, o algoritmo fica cego
+- Automações CRM que usam phone como chave primária param de funcionar em ~20% dos leads
 
 ## A solução
 
-Este projeto implementa o fluxo oficial que a Meta recomenda:
+Fluxo end-to-end que a Meta recomenda oficialmente:
 
 1. Cliente entra no WhatsApp via CTWA
-2. Detector identifica que veio sem telefone (só BSUID)
+2. Handler detecta que veio sem telefone (só BSUID)
 3. Bot pede o contato via mensagem interativa nativa (`request_contact_info`)
 4. Cliente toca em **"Compartilhar contato"** — 1 clique, sem digitação
-5. Sistema recebe o phone, casa com o BSUID, e aplica uma tag
-6. Automações de produção continuam pelo caminho normal
+5. Handler recebe o phone, aplica tag `phone_resolvido` no lead
+6. Seus flows de produção pegam a partir dessa tag e continuam o funil normal
 
 Se cliente não clicar na primeira, **retry 2× e fallback pra digitação livre** antes de marcar como perdido.
 
@@ -36,42 +36,64 @@ Se cliente não clicar na primeira, **retry 2× e fallback pra digitação livre
 
 ```
 ├── datacrazy/
-│   └── bsuid-handler-flow.json      # Fluxo DC completo (18 blocos, 18 notes)
+│   └── bsuid-handler-flow.json      # Fluxo DC completo (18 blocos, tudo comentado)
 ├── n8n/
-│   ├── B4uSYI9a-pedir-contato.json           # Recebe do DC, chama Meta
-│   ├── NlV8VWlq-contato-compartilhado.json   # Salva phone quando cliente clica
-│   └── 19arHsjI-contato-digitado.json        # Fallback text_input
-├── postgres/
-│   └── migration.sql                # ALTER TABLE + índices + colunas de métrica
+│   ├── 01-pedir-contato-bsuid.json           # Recebe do DC, chama Meta
+│   ├── 02-contato-compartilhado.json         # Normaliza phone compartilhado
+│   └── 03-contato-digitado.json              # Valida phone digitado (fallback)
 └── docs/
     ├── WHY.md                       # Background do problema BSUID
     ├── ARCHITECTURE.md              # Desenho end-to-end + fluxo de dados
     ├── SETUP.md                     # Passo-a-passo de implementação
-    ├── META-INTERACTIVE.md          # Payload da API request_contact_info
-    └── METRICS.md                   # Como medir conversão do handler
+    └── META-INTERACTIVE.md          # Payload da API request_contact_info
+```
+
+## Como funciona (visão rápida)
+
+**Componentes:**
+- **DataCrazy** é o cérebro — tem trigger, delays, tags, lead state
+- **n8n** é o middleware — só transforma dados entre DC e Meta (sem estado, sem banco)
+- **Meta Cloud API** manda o botão nativo pro cliente
+
+**Fluxo:**
+```
+Cliente clica CTWA → DC recebe
+                      ↓
+                  Handler flow dispara
+                      ↓
+                  HTTP → n8n → Meta (pede contato)
+                      ↓
+                  Cliente clica "Compartilhar"
+                      ↓
+                  DC recebe msg type=contacts
+                      ↓
+                  HTTP → n8n (normaliza phone)
+                      ↓
+                  DC aplica tag `phone_resolvido`
+                      ↓
+                  Seus flows de produção pegam daqui
 ```
 
 ## Quick start
 
-1. Leia [`docs/WHY.md`](docs/WHY.md) pra entender o contexto se você não conhece BSUID
-2. Rode [`postgres/migration.sql`](postgres/migration.sql) no banco do seu funil
-3. Importe os 3 workflows do [`n8n/`](n8n/) — configure credencial Postgres + Meta token
-4. Importe o flow do [`datacrazy/`](datacrazy/) — substitua os placeholders `YOUR_XXX`
+1. Leia [`docs/WHY.md`](docs/WHY.md) pra entender o contexto BSUID
+2. Importe os 3 workflows em [`n8n/`](n8n/) — configure Meta token + phone_number_id
+3. Importe o flow do [`datacrazy/`](datacrazy/) — substitua placeholders `YOUR_XXX`
+4. Nos flows de produção seus, adicione trigger `tag added = phone_resolvido`
 5. Detalhes em [`docs/SETUP.md`](docs/SETUP.md)
 
 ## Requisitos
 
-- **Meta Cloud API oficial** (não funciona com WhatsApp Business App standalone). Se você usa DataCrazy, WhatsApp Coexistence Mode conta como Cloud API oficial
-- **n8n** self-hosted ou cloud (usado o `n8neditor.sykedigital.com.br` na implementação de referência)
-- **Postgres 12+** (usa GENERATED COLUMN STORED)
-- **DataCrazy CRM** com Cloud API integration ativa. Adaptável pra Chatwoot / Kommo / Wati com pouca alteração no flow visual
+- **Meta Cloud API oficial** (WhatsApp Business App standalone não funciona). Se você usa DataCrazy com Coexistence Mode ou Cloud API integration, tá coberto
+- **n8n** self-hosted ou cloud
+- **DataCrazy CRM** com Cloud API ativa. Adaptável pra Chatwoot / Kommo / Wati com pouca mudança no flow visual
 
 ## Créditos
 
-Implementado pela [Ever Growth](https://agenciaevergrowth.com.br) pra cliente de trading em edtech colombiano. Compartilhado com a comunidade DataCrazy 🇧🇷.
+Implementado pela [Ever Growth](https://agenciaevergrowth.com.br) e compartilhado com a comunidade DataCrazy 🇧🇷.
 
-Contribuições/adaptações pra outros BSPs bem-vindas.
+Adaptações pra outros BSPs bem-vindas.
 
 ## Licença
 
-MIT — use livremente, atribua se ajudar.
+MIT — use livremente.
