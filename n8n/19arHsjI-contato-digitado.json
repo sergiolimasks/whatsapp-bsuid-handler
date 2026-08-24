@@ -1,0 +1,357 @@
+{
+  "name": "[TEMPLATE PÚBLICO] Contato Digitado (fallback text_input)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "text-input-shared",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9e6aebcb-b092-4570-817c-9be26e9c3894",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        128
+      ],
+      "webhookId": "4e2a40bb-7d59-49dd-a827-b9c1d43711ea",
+      "notesInFlow": true,
+      "notes": "Recebe texto digitado pelo cliente (fallback quando nao clicou no botao nativo). Query: leadId, leadName, texto, bsuid, webinar_slug"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "texto_raw",
+              "value": "={{ $('Webhook').item.json.query.texto || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "digits",
+              "value": "={{ String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g, '') }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "telefone_valido",
+              "value": "={{ String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g,'').length >= 10 }}",
+              "type": "boolean"
+            },
+            {
+              "id": "4",
+              "name": "telefone_limpo",
+              "value": "={{ (() => { const d = String($('Webhook').item.json.query.texto || '').replace(/[^0-9]/g,''); if (d.length < 10) return ''; if (d.startsWith('0')) return d.substring(1); return d; })() }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "bsuid",
+              "value": "={{ String($('Webhook').item.json.query.bsuid || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "leadId",
+              "value": "={{ $('Webhook').item.json.query.leadId }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "webinar_slug",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "nome",
+              "value": "={{ String($('Webhook').item.json.query.leadName || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "via",
+              "value": "text_input",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "16c92d1b-6de1-4486-922a-f0363a378c6d",
+      "name": "Parse Texto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        192,
+        128
+      ],
+      "notesInFlow": true,
+      "notes": "Extrai telefone do texto. Valida min 10 digitos. Strip leading '0'. Se invalido, telefone_valido=false"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "47298bdf-ed1d-4fbb-a245-89416cd6d473",
+              "leftValue": "={{ $('Parse Texto').item.json.telefone_valido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4946474f-1956-4a67-b088-2569b2ae38b9",
+      "name": "É telefone válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        128
+      ],
+      "notesInFlow": true,
+      "notes": "Se telefone extraido tem >=10 digitos, segue. Senao, retorna error (DC pode reenviar msg pedindo)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=WITH input AS (\n  SELECT\n    '{{ $('Parse Texto').item.json.bsuid }}'::text AS in_bsuid,\n    '{{ $('Parse Texto').item.json.telefone_limpo }}'::text AS in_tel,\n    '{{ $('Parse Texto').item.json.webinar_slug }}'::text AS in_slug,\n    '{{ $('Parse Texto').item.json.nome }}'::text AS in_nome,\n    'text_input'::text AS in_via\n),\nexisting_by_phone AS (\n  SELECT * FROM rastreio_whats.contatos\n  WHERE telefone = (SELECT in_tel FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n  LIMIT 1\n),\nbsuid_row AS (\n  SELECT * FROM rastreio_whats.contatos\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n  LIMIT 1\n),\nconsolidated AS (\n  UPDATE rastreio_whats.contatos a SET\n    bsuid = COALESCE(a.bsuid, (SELECT bsuid FROM bsuid_row)),\n    ctwaclid = COALESCE(NULLIF(a.ctwaclid,''), (SELECT ctwaclid FROM bsuid_row)),\n    source_id = COALESCE(NULLIF(a.source_id,''), (SELECT source_id FROM bsuid_row)),\n    id_datacrazy = COALESCE(NULLIF(a.id_datacrazy,''), (SELECT id_datacrazy FROM bsuid_row)),\n    nome = COALESCE(NULLIF(a.nome,''), NULLIF((SELECT in_nome FROM input),''), (SELECT nome FROM bsuid_row)),\n    phone_shared_at = COALESCE(a.phone_shared_at, NOW()),\n    phone_shared_via = COALESCE(a.phone_shared_via, (SELECT in_via FROM input)),\n    phone_requested_at = COALESCE(a.phone_requested_at, (SELECT phone_requested_at FROM bsuid_row))\n  WHERE a.telefone = (SELECT in_tel FROM input)\n    AND a.webinar_slug = (SELECT in_slug FROM input)\n    AND EXISTS (SELECT 1 FROM bsuid_row)\n    AND EXISTS (SELECT 1 FROM existing_by_phone)\n  RETURNING a.identifier, a.telefone, a.bsuid, 'CONSOLIDATED'::text AS acao\n),\ndeleted AS (\n  DELETE FROM rastreio_whats.contatos\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n    AND EXISTS (SELECT 1 FROM consolidated)\n  RETURNING bsuid\n),\nsimple_update AS (\n  UPDATE rastreio_whats.contatos SET\n    telefone = (SELECT in_tel FROM input),\n    nome = COALESCE(NULLIF(nome,''), NULLIF((SELECT in_nome FROM input),'')),\n    phone_shared_at = NOW(),\n    phone_shared_via = (SELECT in_via FROM input)\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n    AND NOT EXISTS (SELECT 1 FROM existing_by_phone)\n  RETURNING identifier, telefone, bsuid, 'UPDATED'::text AS acao\n)\nSELECT * FROM consolidated\nUNION ALL SELECT * FROM simple_update",
+        "options": {}
+      },
+      "id": "1e8d1f30-8bec-404e-9cfb-7f358ead898a",
+      "name": "Merge phone (text_input)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        960,
+        -64
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL"
+        }
+      },
+      "notes": "Mesma logica do contact-shared: consolidated (funde bsuid+phone) OU simple_update. via=text_input"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, telefone: $('Parse Texto').item.json.telefone_limpo, via: 'text_input', resultado: $('Merge phone (text_input)').all().map(x=>x.json.acao)}) }}",
+        "options": {}
+      },
+      "id": "4857523b-a67c-4685-87fb-b4bfd9bd798d",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        -64
+      ],
+      "notesInFlow": true,
+      "notes": "Sucesso: telefone gravado. DC pode aplicar tag phone_resolvido no bloco seguinte"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: false, error: 'telefone_invalido', digits: $('Parse Texto').item.json.digits, texto: $('Parse Texto').item.json.texto_raw}) }}",
+        "options": {}
+      },
+      "id": "7d61f459-24c0-4972-934c-a70a9ae11b5a",
+      "name": "Respond Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        976,
+        288
+      ],
+      "notesInFlow": true,
+      "notes": "Texto invalido (<10 digitos). DC pode enviar msg pedindo digitar de novo"
+    },
+    {
+      "parameters": {
+        "content": "## 📝 Fluxo: Contato Digitado (fallback text_input)\nCliente **não clicou** no botão nativo nas 2 primeiras tentativas.\nHandler pediu pra digitar o número.\nEste workflow parseia o texto e valida.\n\n**Chamado por:** DC Handler bloco HTX (branch 1, após text-input)\n**Se válido:** chama merge SQL igual ao Contato Compartilhado com `via=text_input`\n**Se inválido:** retorna 400 (DC pode reenviar msg pedindo pra digitar de novo)",
+        "height": 948,
+        "width": 2120,
+        "color": 5
+      },
+      "id": "72a3345f-7c59-4b0d-ae6e-0d1092dd1f87",
+      "name": "Note bc10",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1️⃣ Recebe texto\nQuery params:\n- `texto` — o que cliente digitou (livre)\n- `bsuid` — do webhook\n- `leadId`, `leadName`, `webinar_slug`",
+        "height": 340,
+        "width": 350,
+        "color": 4
+      },
+      "id": "76a02d77-6f11-4244-b36a-96bc5f10c826",
+      "name": "Note cd09",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2️⃣ Parse Texto\nExtrai só dígitos (regex `[^0-9]`).\nSe resultado tem **<10 dígitos** → `telefone_valido: false`.\nSe começa com `0` → remove (formato internacional).\nvia = `text_input`",
+        "height": 332,
+        "width": 400,
+        "color": 3
+      },
+      "id": "281b85f7-485a-4d0f-98c8-f0ada15a7f7f",
+      "name": "Note 53dd",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3️⃣ IF válido?\n- **true**: continua pro merge SQL\n- **false**: pula pro Respond Erro (400)",
+        "height": 332,
+        "width": 320,
+        "color": 3
+      },
+      "id": "631c4eea-34e8-4fb9-b346-df9cedd334ab",
+      "name": "Note 6ad5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4️⃣ Merge phone (text_input)\nMesma lógica CTE do Contato Compartilhado.\nGrava `phone_shared_at=NOW()` + `phone_shared_via='text_input'`.",
+        "height": 264,
+        "width": 400,
+        "color": 6
+      },
+      "id": "fa46ac28-58f3-47b4-b8ef-3d350745b7a8",
+      "name": "Note 6810",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### ❌ Respond Erro (400)\nTexto não parece telefone válido.\nRetorna `{ok:false, error:'telefone_invalido', digits, texto}`.\nDC pode reenviar msg pedindo pra digitar de novo.",
+        "height": 314,
+        "width": 400,
+        "color": 2
+      },
+      "id": "6774f17d-30c0-45b2-bd45-a6664616d64f",
+      "name": "Note 365a",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### ✅ Respond OK\nSucesso: telefone gravado.\nDC aplica tag `phone_resolvido` no próximo bloco.",
+        "height": 294,
+        "width": 350,
+        "color": 6
+      },
+      "id": "e60b6d8f-6d76-4198-8959-4d892a527bdc",
+      "name": "Note cf34",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        -192
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Texto": {
+      "main": [
+        [
+          {
+            "node": "É telefone válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É telefone válido?": {
+      "main": [
+        [
+          {
+            "node": "Merge phone (text_input)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge phone (text_input)": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

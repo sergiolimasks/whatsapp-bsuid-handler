@@ -1,0 +1,22 @@
+# Nunca commitar credenciais
+*.env
+.env
+credentials.json
+*.pem
+*.key
+
+# Backups/dumps
+*.dump
+*.sql.bak
+backups/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

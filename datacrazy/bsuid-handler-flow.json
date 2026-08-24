@@ -1,0 +1,853 @@
+{
+  "name": "[TEMPLATE PÚBLICO] WhatsApp BSUID Handler",
+  "description": "Detecta lead BSUID-only via CTWA → pede telefone via Meta interactive → 3 tentativas + fallback digitação → tag phone_resolvido",
+  "blocks": [
+    {
+      "id": "d4d41d42-1631-4963-94a8-da9c2d4065f9",
+      "type": "condition",
+      "sourceBlockId": null,
+      "options": {
+        "conditions": [
+          {
+            "id": "a72c3413-3178-4068-9a82-ebe8618fe9ba",
+            "name": "field-contains-condition",
+            "group": "field",
+            "options": {
+              "contains": "contacts",
+              "parameter": "[Message-2]type"
+            },
+            "nextBlockId": "b081a2f2-e272-4452-b2c2-686b64e1ba6a"
+          }
+        ],
+        "trueNextBlockId": "b081a2f2-e272-4452-b2c2-686b64e1ba6a",
+        "falseNextBlockId": ""
+      },
+      "presentation": {
+        "x": -28.68556571674736,
+        "y": 570.4242309994328
+      }
+    },
+    {
+      "id": "5c92b4d6-d51e-4927-9dfb-0201ebe2cd3e",
+      "type": "trigger",
+      "sourceBlockId": null,
+      "options": {
+        "triggers": [
+          {
+            "name": "message-received-trigger",
+            "group": "messages",
+            "options": {
+              "type": "contains",
+              "keywords": [
+                "Quiero participar en la reunión secreta",
+                "teste"
+              ],
+              "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
+              "listenGroup": false,
+              "receiveJson": true,
+              "datasourceName": "Message-1",
+              "datasourceColor": "#3b82f6",
+              "initializeSession": "always"
+            }
+          }
+        ],
+        "nextBlockId": "574838c6-ac64-4602-95bc-583291e12a65"
+      },
+      "presentation": {
+        "x": -378.0058508464465,
+        "y": 6.593125305461278
+      }
+    },
+    {
+      "id": "ea70a29b-e3f5-4d8c-8557-57fbdb8698c3",
+      "type": "chat",
+      "sourceBlockId": null,
+      "options": {
+        "messages": [
+          {
+            "name": "send-text-message",
+            "group": "messages",
+            "stepId": "022b73fc-165b-4f8e-b5e1-5f79671cdf66",
+            "options": {
+              "text": "Última llamada 🚨\n\nSi el botón no te funciona, escribe tu WhatsApp aquí abajo con código de país (ej: +57 300 1234567).",
+              "buttons": [],
+              "breakMessages": false,
+              "breakMessagesIntervalInSeconds": 2
+            }
+          }
+        ],
+        "platform": "WHATSAPP",
+        "provider": "WHATSAPP_CLOUD_API",
+        "timezone": "",
+        "contactId": "",
+        "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
+        "nextBlockId": "1be73370-3844-4ada-9dd3-233b46bb9296",
+        "isAnnotation": false,
+        "scheduledDate": "",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 2415.637103059145,
+        "y": -32.81511482146897
+      }
+    },
+    {
+      "id": "3f0ed3f4-78cb-4542-8499-f544c36385b0",
+      "type": "delay",
+      "sourceBlockId": null,
+      "options": {
+        "delay": {
+          "name": "minutes-delay",
+          "options": {
+            "minutes": 7
+          }
+        },
+        "nextBlockId": "d012e31b-e4cb-4bb3-abc7-fe64108c5862",
+        "refreshLeadDataOnResume": true
+      },
+      "presentation": {
+        "x": 1715.230765673409,
+        "y": -26.18055845495343
+      }
+    },
+    {
+      "id": "a703cf6a-9a6e-4034-adb6-087370634717",
+      "type": "api",
+      "sourceBlockId": null,
+      "options": {
+        "apis": [
+          {
+            "name": "json-http-request-api",
+            "group": "http",
+            "options": {
+              "url": "https://YOUR_N8N_WEBHOOK_HOST/webhook/YOUR_CLIENT-text-input-shared",
+              "body": "",
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{ID do lead|leadId}"
+                },
+                {
+                  "key": "leadName",
+                  "value": "{Nome do lead|leadName}"
+                },
+                {
+                  "key": "texto",
+                  "value": "{texto|additional-field[phone_digitado]}"
+                },
+                {
+                  "key": "bsuid",
+                  "value": "{bsuid|[Message-1]from_user_id}"
+                },
+                {
+                  "key": "webinar_slug",
+                  "value": "YOUR_CAMPAIGN_SLUG"
+                }
+              ],
+              "method": "POST",
+              "headers": [],
+              "retryCount": 0,
+              "datasourceName": "43c87a40-ed7d-42d8-8754-ba5b5aae5958",
+              "datasourceColor": "#000000",
+              "retryIntervalSeconds": 5,
+              "responseHeadersOverrides": []
+            }
+          }
+        ],
+        "nextBlockId": "93f7be2e-13ec-4617-a492-e1802e691caa",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 3175.689878322882,
+        "y": 391.4211949770759
+      }
+    },
+    {
+      "id": "b081a2f2-e272-4452-b2c2-686b64e1ba6a",
+      "type": "api",
+      "sourceBlockId": null,
+      "options": {
+        "apis": [
+          {
+            "name": "json-http-request-api",
+            "group": "http",
+            "options": {
+              "url": "https://YOUR_N8N_WEBHOOK_HOST/webhook/YOUR_CLIENT-contact-shared",
+              "body": "",
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{ID do lead|leadId}"
+                },
+                {
+                  "key": "leadName",
+                  "value": "{Nome do lead|leadName}"
+                },
+                {
+                  "key": "telefone",
+                  "value": "{tel|[Message-2]contacts[0].phones[0].phone}"
+                },
+                {
+                  "key": "bsuid",
+                  "value": "{bsuid|[Message-2]from_user_id}"
+                },
+                {
+                  "key": "name_contact",
+                  "value": "{nm|[Message-2]contacts[0].name.formatted_name}"
+                },
+                {
+                  "key": "first_name_contact",
+                  "value": "{fn|[Message-2]contacts[0].name.first_name}"
+                },
+                {
+                  "key": "webinar_slug",
+                  "value": "YOUR_CAMPAIGN_SLUG"
+                }
+              ],
+              "method": "POST",
+              "headers": [],
+              "retryCount": 0,
+              "datasourceName": "f030740e-4df3-4dba-a7c9-13066fa212b5",
+              "datasourceColor": "#000000",
+              "retryIntervalSeconds": 5,
+              "responseHeadersOverrides": []
+            }
+          }
+        ],
+        "nextBlockId": "a0330edd-21d4-494f-a787-0b34ba617234",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 345.3674395945121,
+        "y": 579.227259874362
+      }
+    },
+    {
+      "id": "626ca146-0462-4567-8902-27ddcf9d412b",
+      "type": "condition",
+      "sourceBlockId": null,
+      "options": {
+        "conditions": [
+          {
+            "id": "6687c48c-eda0-42d5-bc46-eb6c1c9771c1",
+            "name": "lead-has-tag-condition",
+            "group": "lead",
+            "options": {
+              "tagIds": [
+                "YOUR_TAG_PHONE_RESOLVIDO_ID"
+              ]
+            },
+            "nextBlockId": ""
+          }
+        ],
+        "trueNextBlockId": "",
+        "falseNextBlockId": "a16c2886-7f1f-4ead-893a-565ac048f570"
+      },
+      "presentation": {
+        "x": 3677.311080447387,
+        "y": 17.29246779258878
+      }
+    },
+    {
+      "id": "6076d508-5560-4d83-b4b0-9159e9a4601a",
+      "type": "chat",
+      "sourceBlockId": null,
+      "options": {
+        "messages": [
+          {
+            "name": "send-text-message",
+            "group": "messages",
+            "stepId": "6c5029c5-315f-497f-ade2-c4704a473792",
+            "options": {
+              "text": "{Nome do lead|leadName}, sin tu WhatsApp no logro enviarte los materiales de la clase 😕\n\nToca el botón abajo — tarda 2 segundos 👇",
+              "buttons": [],
+              "breakMessages": false,
+              "breakMessagesIntervalInSeconds": 2
+            }
+          }
+        ],
+        "platform": "WHATSAPP",
+        "provider": "WHATSAPP_CLOUD_API",
+        "timezone": "",
+        "contactId": "",
+        "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
+        "nextBlockId": "69e879f1-a6bd-4b37-9bcb-7cd62596840c",
+        "isAnnotation": false,
+        "scheduledDate": "",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 1006.53123282953,
+        "y": -12.91144572192233
+      }
+    },
+    {
+      "id": "1be73370-3844-4ada-9dd3-233b46bb9296",
+      "type": "chat",
+      "sourceBlockId": null,
+      "options": {
+        "messages": [
+          {
+            "name": "text-input-message",
+            "group": "messages",
+            "stepId": "78cff2bf-a2db-4ded-b34c-9afa55a95491",
+            "options": {
+              "text": "",
+              "parameter": "additional-field[phone_digitado]",
+              "acceptMediaUrl": false,
+              "timeoutWaitType": "minutes",
+              "timeoutInSeconds": 1200,
+              "timeoutNextBlockId": "a16c2886-7f1f-4ead-893a-565ac048f570",
+              "invalidResponseMessage": "No entendí. Escribe solo tu número de WhatsApp con código de país (ej: +57 300 1234567)"
+            }
+          }
+        ],
+        "platform": "WHATSAPP",
+        "provider": "WHATSAPP_CLOUD_API",
+        "timezone": "",
+        "contactId": "",
+        "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
+        "nextBlockId": "a703cf6a-9a6e-4034-adb6-087370634717",
+        "isAnnotation": false,
+        "scheduledDate": "",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 2775.227786386835,
+        "y": -28.92343380078908
+      }
+    },
+    {
+      "id": "69e879f1-a6bd-4b37-9bcb-7cd62596840c",
+      "type": "api",
+      "sourceBlockId": null,
+      "options": {
+        "apis": [
+          {
+            "name": "json-http-request-api",
+            "group": "http",
+            "options": {
+              "url": "https://YOUR_N8N_WEBHOOK_HOST/webhook/YOUR_CLIENT-bsuid-request",
+              "body": "",
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{ID do lead|leadId}"
+                },
+                {
+                  "key": "name",
+                  "value": "{Nome do lead|leadName}"
+                },
+                {
+                  "key": "leadPhone",
+                  "value": "{Telefone do lead|leadPhone}"
+                },
+                {
+                  "key": "bsuid_raw",
+                  "value": "{bsuid|[Message-1]from_user_id}"
+                },
+                {
+                  "key": "ctwa_clid",
+                  "value": "{ctwa|[Message-1]referral.ctwa_clid}"
+                },
+                {
+                  "key": "source_id",
+                  "value": "{src|[Message-1]referral.source_id}"
+                },
+                {
+                  "key": "source_type",
+                  "value": "{stype|[Message-1]referral.source_type}"
+                },
+                {
+                  "key": "webinar_slug",
+                  "value": "YOUR_CAMPAIGN_SLUG"
+                }
+              ],
+              "method": "POST",
+              "headers": [],
+              "retryCount": 0,
+              "datasourceName": "2aa08cd0-a212-4787-a016-8b817a6a856d",
+              "datasourceColor": "#000000",
+              "retryIntervalSeconds": 5,
+              "responseHeadersOverrides": []
+            }
+          }
+        ],
+        "nextBlockId": "3f0ed3f4-78cb-4542-8499-f544c36385b0",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 1355.905081976583,
+        "y": -21.20464118006676
+      }
+    },
+    {
+      "id": "574838c6-ac64-4602-95bc-583291e12a65",
+      "type": "api",
+      "sourceBlockId": null,
+      "options": {
+        "apis": [
+          {
+            "name": "json-http-request-api",
+            "group": "http",
+            "options": {
+              "url": "https://YOUR_N8N_WEBHOOK_HOST/webhook/YOUR_CLIENT-bsuid-request",
+              "body": "",
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{ID do lead|leadId}"
+                },
+                {
+                  "key": "name",
+                  "value": "{Nome do lead|leadName}"
+                },
+                {
+                  "key": "leadPhone",
+                  "value": "{Telefone do lead|leadPhone}"
+                },
+                {
+                  "key": "bsuid_raw",
+                  "value": "{bsuid|[Message-1]from_user_id}"
+                },
+                {
+                  "key": "ctwa_clid",
+                  "value": "{ctwa|[Message-1]referral.ctwa_clid}"
+                },
+                {
+                  "key": "source_id",
+                  "value": "{src|[Message-1]referral.source_id}"
+                },
+                {
+                  "key": "source_type",
+                  "value": "{stype|[Message-1]referral.source_type}"
+                },
+                {
+                  "key": "webinar_slug",
+                  "value": "YOUR_CAMPAIGN_SLUG"
+                }
+              ],
+              "method": "POST",
+              "headers": [],
+              "retryCount": 0,
+              "datasourceName": "600e986d-7490-47ac-881e-ef41671b36dd",
+              "datasourceColor": "#000000",
+              "retryIntervalSeconds": 5,
+              "responseHeadersOverrides": []
+            }
+          }
+        ],
+        "nextBlockId": "f6a533fb-5b6b-426f-9d24-18f13d9e1e09",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": -34.19312327827809,
+        "y": 6.778483287420752
+      }
+    },
+    {
+      "id": "a29d5707-48e2-4d6c-86d7-bb234ea38f7f",
+      "type": "trigger",
+      "sourceBlockId": null,
+      "options": {
+        "triggers": [
+          {
+            "name": "message-received-trigger",
+            "group": "messages",
+            "options": {
+              "type": "any",
+              "keywords": [],
+              "instanceId": "YOUR_DATACRAZY_INSTANCE_ID",
+              "listenGroup": false,
+              "receiveJson": true,
+              "datasourceName": "Message-2",
+              "datasourceColor": "#f59e0b",
+              "initializeSession": "always"
+            }
+          }
+        ],
+        "nextBlockId": "d4d41d42-1631-4963-94a8-da9c2d4065f9"
+      },
+      "presentation": {
+        "x": -398.3370565905423,
+        "y": 572.6249882181651
+      }
+    },
+    {
+      "id": "6b81a2be-0066-421e-abdf-2835e2fc29e3",
+      "type": "condition",
+      "sourceBlockId": null,
+      "options": {
+        "conditions": [
+          {
+            "id": "a5a77998-f089-48be-bd69-381798b6179d",
+            "name": "lead-has-tag-condition",
+            "group": "lead",
+            "options": {
+              "tagIds": [
+                "YOUR_TAG_PHONE_RESOLVIDO_ID"
+              ]
+            },
+            "nextBlockId": ""
+          }
+        ],
+        "trueNextBlockId": "",
+        "falseNextBlockId": "6076d508-5560-4d83-b4b0-9159e9a4601a"
+      },
+      "presentation": {
+        "x": 668.7678573238791,
+        "y": -6.27688935540678
+      }
+    },
+    {
+      "id": "d012e31b-e4cb-4bb3-abc7-fe64108c5862",
+      "type": "condition",
+      "sourceBlockId": null,
+      "options": {
+        "conditions": [
+          {
+            "id": "a0c84b0a-2dcb-41f6-885d-a16b47572192",
+            "name": "lead-has-tag-condition",
+            "group": "lead",
+            "options": {
+              "tagIds": [
+                "YOUR_TAG_PHONE_RESOLVIDO_ID"
+              ]
+            },
+            "nextBlockId": ""
+          }
+        ],
+        "trueNextBlockId": "",
+        "falseNextBlockId": "ea70a29b-e3f5-4d8c-8557-57fbdb8698c3"
+      },
+      "presentation": {
+        "x": 2067.92189300372,
+        "y": -29.4978366382112
+      }
+    },
+    {
+      "id": "a16c2886-7f1f-4ead-893a-565ac048f570",
+      "type": "action",
+      "sourceBlockId": null,
+      "options": {
+        "actions": [
+          {
+            "name": "add-tag-action",
+            "group": "lead",
+            "options": {
+              "tagIds": [
+                "YOUR_TAG_LOST_BSUID_ID"
+              ],
+              "tagName": "lost_bsuid"
+            }
+          }
+        ],
+        "nextBlockId": "",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 3157.856654953341,
+        "y": -684.7490849830078
+      }
+    },
+    {
+      "id": "a0330edd-21d4-494f-a787-0b34ba617234",
+      "type": "action",
+      "sourceBlockId": null,
+      "options": {
+        "actions": [
+          {
+            "name": "add-tag-action",
+            "group": "lead",
+            "options": {
+              "tagIds": [
+                "YOUR_TAG_PHONE_RESOLVIDO_ID"
+              ],
+              "tagName": "phone_resolvido"
+            }
+          }
+        ],
+        "nextBlockId": "",
+        "errorNextBlockId": ""
+      },
+      "presentation": {
+        "x": 734.8257454368976,
+        "y": 570.4242309994328
+      }
+    },
+    {
+      "id": "f6a533fb-5b6b-426f-9d24-18f13d9e1e09",
+      "type": "delay",
+      "sourceBlockId": null,
+      "options": {
+        "delay": {
+          "name": "minutes-delay",
+          "options": {
+            "minutes": 3
+          }
+        },
+        "nextBlockId": "6b81a2be-0066-421e-abdf-2835e2fc29e3",
+        "refreshLeadDataOnResume": true
+      },
+      "presentation": {
+        "x": 319.1358458428832,
+        "y": 8.365475843549206
+      }
+    },
+    {
+      "id": "93f7be2e-13ec-4617-a492-e1802e691caa",
+      "type": "delay",
+      "sourceBlockId": null,
+      "options": {
+        "delay": {
+          "name": "minutes-delay",
+          "options": {
+            "minutes": 20
+          }
+        },
+        "nextBlockId": "626ca146-0462-4567-8902-27ddcf9d412b",
+        "refreshLeadDataOnResume": true
+      },
+      "presentation": {
+        "x": 3175.614156449655,
+        "y": -37.7264626757182
+      }
+    }
+  ],
+  "notes": [
+    {
+      "options": {
+        "text": "Trigger 1 — Nova mensagem CTWA\nDispara SÓ quando lead manda a keyword da campanha (ex: 'Quiero participar en la reunión secreta').\nSem essa keyword nao entra no fluxo.",
+        "color": "#c7d2fe",
+        "width": 256,
+        "height": 218
+      },
+      "presentation": {
+        "x": -373.610433976139,
+        "y": -228
+      },
+      "id": "62373443-5d1c-4b21-ae94-3bba06a7ad74"
+    },
+    {
+      "options": {
+        "text": "1º pedido de contato\nChama n8n /bsuid-request. n8n filtra: só envia Meta interactive se lead NAO tem phone.",
+        "color": "#c7d2fe",
+        "width": 177,
+        "height": 213
+      },
+      "presentation": {
+        "x": -29.67413441999761,
+        "y": -218.3132862105884
+      },
+      "id": "c1dad563-62f3-4f3d-9173-13675b1ab8ce"
+    },
+    {
+      "options": {
+        "text": "Espera 3 min\nDa tempo pro cliente ver e clicar",
+        "color": "#c7d2fe",
+        "width": 202,
+        "height": 139
+      },
+      "presentation": {
+        "x": 319.1358458428832,
+        "y": -141.6345241564508
+      },
+      "id": "e788975c-0c29-46f1-b904-f80a88feff0d"
+    },
+    {
+      "options": {
+        "text": "Ja resolveu?\nCheck tag 'phone_resolvido'.\nSIM → sai do fluxo. NAO → 2ª tentativa",
+        "color": "#c7d2fe",
+        "width": 221,
+        "height": 160
+      },
+      "presentation": {
+        "x": 668.7678573238791,
+        "y": -196.2768893554067
+      },
+      "id": "40e6df5c-2d11-409d-9335-f0bf59abe7b6"
+    },
+    {
+      "options": {
+        "text": "2ª msg — reforca pedido\nTexto explicando por que precisa do WA",
+        "color": "#c7d2fe",
+        "width": 221,
+        "height": 150
+      },
+      "presentation": {
+        "x": 1006.53123282953,
+        "y": -202.9114457219223
+      },
+      "id": "6138c3ab-a83a-4313-8fa8-3d89dcc8ac97"
+    },
+    {
+      "options": {
+        "text": "2º pedido nativo\nReenvia botao interactive Meta (aparece novo na conversa)",
+        "color": "#c7d2fe",
+        "width": 240,
+        "height": 162
+      },
+      "presentation": {
+        "x": 1355.905081976583,
+        "y": -213.2046411800667
+      },
+      "id": "d893587d-8467-487d-8377-dca4977c6148"
+    },
+    {
+      "options": {
+        "text": "Espera 7 min",
+        "color": "#c7d2fe",
+        "width": 180,
+        "height": 60
+      },
+      "presentation": {
+        "x": 1715.230765673409,
+        "y": -176.1805584549534
+      },
+      "id": "b4d5bfe0-1d4c-4e5e-bcc8-0db1d20b69db"
+    },
+    {
+      "options": {
+        "text": "Ja resolveu?\nSIM → sai. NAO → última chance",
+        "color": "#c7d2fe",
+        "width": 220,
+        "height": 110
+      },
+      "presentation": {
+        "x": 2067.92189300372,
+        "y": -179.4978366382112
+      },
+      "id": "728ca304-1c6e-4458-82b2-99c01177ecc6"
+    },
+    {
+      "options": {
+        "text": "3ª msg — pede pra digitar\nUltima chance: cliente escreve numero direto",
+        "color": "#c7d2fe",
+        "width": 260,
+        "height": 120
+      },
+      "presentation": {
+        "x": 2415.637103059145,
+        "y": -182.815114821469
+      },
+      "id": "b41086d8-0c63-4507-925b-08ce897f5d1e"
+    },
+    {
+      "options": {
+        "text": "Text input\nAguarda cliente digitar. Salva em additional-field[phone_digitado].\nTimeout 20min → LOST",
+        "color": "#c7d2fe",
+        "width": 260,
+        "height": 140
+      },
+      "presentation": {
+        "x": 2775.227786386835,
+        "y": -178.9234338007891
+      },
+      "id": "fb1181b5-2171-4bb3-910f-b3f86d2a3264"
+    },
+    {
+      "options": {
+        "text": "Envia texto pro n8n\n/text-input-shared parseia e valida.\nSe valido: grava phone + tag resolvido",
+        "color": "#c7d2fe",
+        "width": 260,
+        "height": 140
+      },
+      "presentation": {
+        "x": 3175.689878322882,
+        "y": 241.4211949770759
+      },
+      "id": "b2986c55-ca57-4887-b0e3-8c6060b3f5c2"
+    },
+    {
+      "options": {
+        "text": "Espera mais 20min",
+        "color": "#c7d2fe",
+        "width": 200,
+        "height": 60
+      },
+      "presentation": {
+        "x": 3175.614156449655,
+        "y": -187.7264626757182
+      },
+      "id": "b05f1dc8-7e63-4736-bc37-6c5f64b5f49f"
+    },
+    {
+      "options": {
+        "text": "Ultima checagem\nSIM (resolvido pelo texto) → sai\nNAO → marca perdido",
+        "color": "#c7d2fe",
+        "width": 220,
+        "height": 130
+      },
+      "presentation": {
+        "x": 3677.311080447387,
+        "y": -132.7075322074112
+      },
+      "id": "c63271d9-d5b7-40b3-8c31-558bc70f14a1"
+    },
+    {
+      "options": {
+        "text": "Tag lost_bsuid\nCliente nao respondeu em ~30min. Marcado como perdido pra analise/retargeting",
+        "color": "#fecaca",
+        "width": 260,
+        "height": 130
+      },
+      "presentation": {
+        "x": 3157.856654953341,
+        "y": -834.7490849830078
+      },
+      "id": "2a995b53-a76a-450b-901d-5ecb33ebeaf5"
+    },
+    {
+      "options": {
+        "text": "Trigger 2 — Qualquer msg recebida\nDispara em toda msg que chega, filtro é na condition",
+        "color": "#c7d2fe",
+        "width": 257,
+        "height": 154
+      },
+      "presentation": {
+        "x": -398.3370565905423,
+        "y": 388.6249882181651
+      },
+      "id": "d72c9f12-5f9a-4a12-95cc-d0a0bd3f6dd8"
+    },
+    {
+      "options": {
+        "text": "É compartilhamento?\nSó passa se msg.type == 'contacts' (botao nativo clicado).\nSenao morre aqui.",
+        "color": "#c7d2fe",
+        "width": 246,
+        "height": 164
+      },
+      "presentation": {
+        "x": -28.68556571674736,
+        "y": 386.4242309994328
+      },
+      "id": "c2d824d9-aae3-4003-aeed-45327b8850aa"
+    },
+    {
+      "options": {
+        "text": "Envia telefone + BSUID pro n8n\n/contact-shared UPDATE Postgres.\nDetecta e resolve conflitos PK",
+        "color": "#c7d2fe",
+        "width": 273,
+        "height": 185
+      },
+      "presentation": {
+        "x": 345.3674395945121,
+        "y": 384.2272598743619
+      },
+      "id": "1efdf8d5-4fd2-4666-b8aa-630dbf0af4ff"
+    },
+    {
+      "options": {
+        "text": "Aplica tag phone_resolvido\nSinal pros flows de producao pegarem daqui (via trigger tag-added)",
+        "color": "#bbf7d0",
+        "width": 264,
+        "height": 146
+      },
+      "presentation": {
+        "x": 734.8257454368976,
+        "y": 404.4242309994328
+      },
+      "id": "66829d01-4e2f-4915-9d2b-aeca3a81fb52"
+    }
+  ]
+}

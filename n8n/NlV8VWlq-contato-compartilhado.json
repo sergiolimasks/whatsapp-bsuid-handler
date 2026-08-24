@@ -1,0 +1,307 @@
+{
+  "name": "[TEMPLATE PÚBLICO] Contato Compartilhado (BSUID→phone)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "contact-shared",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4f18703f-de94-48d5-a9b3-3f4e989f8947",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        240
+      ],
+      "webhookId": "022e0d1c-4976-4c20-b3c5-fcfefd4920f5",
+      "notesInFlow": true,
+      "notes": "Recebe do DC Handler (branch 2 - contacts trigger) OU do fluxo digitacao (via=text_input). Query: leadId, leadName, telefone, bsuid, name_contact, first_name_contact, via, webinar_slug"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "schema",
+              "value": "rastreio_whats",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "tabela",
+              "value": "contatos",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "webinar_slug",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "814a8cec-b226-46e6-9419-cb07b49b30fe",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        240
+      ],
+      "notesInFlow": true,
+      "notes": "Consts: schema/tabela/webinar_slug"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "telefone_raw",
+              "value": "={{ $('Webhook').item.json.query.telefone }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "telefone_limpo",
+              "value": "={{ String($('Webhook').item.json.query.telefone || '').replace(/[^0-9]/g,'') }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "bsuid",
+              "value": "={{ String($('Webhook').item.json.query.bsuid || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "leadId",
+              "value": "={{ $('Webhook').item.json.query.leadId }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "webinar_slug",
+              "value": "={{ $('Webhook').item.json.query.webinar_slug || '7usd' }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "nome",
+              "value": "={{ String($('Webhook').item.json.query.name_contact || $('Webhook').item.json.query.first_name_contact || $('Webhook').item.json.query.leadName || '').trim() }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "via",
+              "value": "={{ $('Webhook').item.json.query.via || 'native_button' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dd70faa9-e386-46f4-b5ea-12b00ae0f977",
+      "name": "Sanitize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        240
+      ],
+      "notesInFlow": true,
+      "notes": "Normaliza dados: strip nao-digitos do phone; nome com fallback vCard>firstName>WA profile; via=native_button|text_input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=WITH input AS (\n  SELECT\n    '{{ $('Sanitize').item.json.bsuid }}'::text AS in_bsuid,\n    '{{ $('Sanitize').item.json.telefone_limpo }}'::text AS in_tel,\n    '{{ $('Sanitize').item.json.webinar_slug }}'::text AS in_slug,\n    '{{ $('Sanitize').item.json.nome }}'::text AS in_nome,\n    COALESCE(NULLIF('{{ $('Sanitize').item.json.via }}',''), 'native_button')::text AS in_via\n),\nexisting_by_phone AS (\n  SELECT * FROM rastreio_whats.contatos\n  WHERE telefone = (SELECT in_tel FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n  LIMIT 1\n),\nbsuid_row AS (\n  SELECT * FROM rastreio_whats.contatos\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n  LIMIT 1\n),\nconsolidated AS (\n  UPDATE rastreio_whats.contatos a SET\n    bsuid = COALESCE(a.bsuid, (SELECT bsuid FROM bsuid_row)),\n    ctwaclid = COALESCE(NULLIF(a.ctwaclid,''), (SELECT ctwaclid FROM bsuid_row)),\n    source_id = COALESCE(NULLIF(a.source_id,''), (SELECT source_id FROM bsuid_row)),\n    id_datacrazy = COALESCE(NULLIF(a.id_datacrazy,''), (SELECT id_datacrazy FROM bsuid_row)),\n    nome = COALESCE(NULLIF(a.nome,''), NULLIF((SELECT in_nome FROM input),''), (SELECT nome FROM bsuid_row)),\n    phone_shared_at = COALESCE(a.phone_shared_at, NOW()),\n    phone_shared_via = COALESCE(a.phone_shared_via, (SELECT in_via FROM input)),\n    phone_requested_at = COALESCE(a.phone_requested_at, (SELECT phone_requested_at FROM bsuid_row))\n  WHERE a.telefone = (SELECT in_tel FROM input)\n    AND a.webinar_slug = (SELECT in_slug FROM input)\n    AND EXISTS (SELECT 1 FROM bsuid_row)\n    AND EXISTS (SELECT 1 FROM existing_by_phone)\n  RETURNING a.identifier, a.telefone, a.bsuid, a.nome, a.phone_shared_via, 'CONSOLIDATED'::text AS acao\n),\ndeleted AS (\n  DELETE FROM rastreio_whats.contatos\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n    AND EXISTS (SELECT 1 FROM consolidated)\n  RETURNING bsuid\n),\nsimple_update AS (\n  UPDATE rastreio_whats.contatos SET\n    telefone = (SELECT in_tel FROM input),\n    nome = COALESCE(NULLIF(nome,''), NULLIF((SELECT in_nome FROM input),'')),\n    phone_shared_at = NOW(),\n    phone_shared_via = (SELECT in_via FROM input)\n  WHERE bsuid = (SELECT in_bsuid FROM input)\n    AND webinar_slug = (SELECT in_slug FROM input)\n    AND telefone IS NULL\n    AND NOT EXISTS (SELECT 1 FROM existing_by_phone)\n  RETURNING identifier, telefone, bsuid, nome, phone_shared_via, 'UPDATED'::text AS acao\n),\naudit AS (\n  INSERT INTO rastreio_whats.contatos (bsuid, telefone, webinar_slug, nome, status, mensagem, phone_shared_at, phone_shared_via, criado_em_br, criado_em_co)\n  SELECT (SELECT in_bsuid FROM input), (SELECT in_tel FROM input), (SELECT in_slug FROM input),\n    NULLIF((SELECT in_nome FROM input),''),\n    'orphan_contact_shared',\n    'contact_shared recebido mas nao achou bsuid_row + nao existia phone_row',\n    NOW(),\n    (SELECT in_via FROM input),\n    NOW() AT TIME ZONE 'America/Sao_Paulo',\n    NOW() AT TIME ZONE 'America/Bogota'\n  WHERE NOT EXISTS (SELECT 1 FROM bsuid_row)\n    AND NOT EXISTS (SELECT 1 FROM existing_by_phone)\n  ON CONFLICT (identifier, webinar_slug) DO NOTHING\n  RETURNING identifier, telefone, bsuid, nome, phone_shared_via, 'ORPHAN_INSERTED'::text AS acao\n)\nSELECT * FROM consolidated\nUNION ALL SELECT * FROM simple_update\nUNION ALL SELECT * FROM audit",
+        "options": {}
+      },
+      "id": "85b77e2e-a35f-432a-92f4-f37edae895b3",
+      "name": "Merge/Update phone",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1024,
+        240
+      ],
+      "notesInFlow": true,
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL"
+        }
+      },
+      "notes": "CTE consolidada: se ja existe linha (phone,slug), funde bsuid+ctwaclid nela e deleta linha bsuid (evita conflito PK). Senao, UPDATE simples SET telefone+nome. Grava phone_shared_at/via"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ok: true, bsuid: $('Webhook').item.json.query.bsuid, telefone: $('Webhook').item.json.query.telefone, resultado: $('Merge/Update phone').all().map(x=>x.json.acao) }) }}",
+        "options": {}
+      },
+      "id": "4d8bfacd-1e8a-46b6-b77d-d7bb8365ea9e",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        240
+      ],
+      "notesInFlow": true,
+      "notes": "Retorna ok + array de acoes executadas (CONSOLIDATED/UPDATED/ORPHAN_INSERTED)"
+    },
+    {
+      "parameters": {
+        "content": "## ✅ Fluxo: Contato Compartilhado (BSUID → phone)\nCliente clicou no botão \"Compartir contacto\" nativo do Meta.\nEste workflow recebe o telefone real + BSUID e atualiza o Postgres.\n\n**Chamado por:** DC Handler bloco H2 (branch 2, condition type=contacts)\n**Também chamado por:** workflow \"Contato Digitado\" (fallback text_input)",
+        "height": 838,
+        "width": 2230,
+        "color": 6
+      },
+      "id": "96188889-a494-4cb8-b117-89bc0cce2d34",
+      "name": "Note b4cc",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        -368
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1️⃣ Recebe telefone compartilhado\nQuery params:\n- `telefone` — formato Meta `+55 19 99739-6902`\n- `bsuid` — do webhook `from_user_id`\n- `name_contact` / `first_name_contact` — do vCard\n- `leadName` — profile WA (fallback)\n- `via` — `native_button` (default) ou `text_input`",
+        "height": 460,
+        "width": 400,
+        "color": 4
+      },
+      "id": "27567472-3141-4458-8063-d38c3b195ac3",
+      "name": "Note 6100",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2️⃣ Config\nConsts: schema/tabela/webinar_slug (default 7usd).",
+        "height": 460,
+        "width": 276,
+        "color": 3
+      },
+      "id": "c6953088-06e8-4dfa-93af-8483f05c46f7",
+      "name": "Note 8535",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        48,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 3️⃣ Sanitize\n- Strip non-digits do phone (`+55 19 99...` → `5519997...`)\n- Nome com fallback: vCard > firstName > WA profile\n- via default `native_button`",
+        "height": 456,
+        "width": 380,
+        "color": 3
+      },
+      "id": "4d73c2d3-7981-476d-88e4-bd1c9c497130",
+      "name": "Note 1555",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        384,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 4️⃣ Merge SQL (CTE)\n**3 caminhos possíveis:**\n- **CONSOLIDATED**: já existia linha `(phone, slug)` E linha `(bsuid, slug)`. Funde bsuid+ctwaclid na existente, deleta linha bsuid (evita conflito PK)\n- **UPDATED**: só existia linha bsuid. UPDATE SET telefone; identifier recalcula pra phone\n- **ORPHAN_INSERTED**: nenhuma linha existia. Cria nova com flag orphan pra investigar\n\nGrava `phone_shared_at=NOW()` + `phone_shared_via`",
+        "height": 452,
+        "width": 500,
+        "color": 7
+      },
+      "id": "f9210e5d-70ee-47ed-b0d5-35dd6f28f824",
+      "name": "Note 8e86",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        832,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 5️⃣ Respond\nRetorna array de ações executadas.\nDC Handler aplica tag `phone_resolvido` no próximo bloco (AOK).",
+        "height": 454,
+        "width": 320,
+        "color": 5
+      },
+      "id": "c9bdc6a0-e014-4fc0-be8c-ecbcd8197f67",
+      "name": "Note 306f",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        -48
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Sanitize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize": {
+      "main": [
+        [
+          {
+            "node": "Merge/Update phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge/Update phone": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
